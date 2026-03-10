@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+xgboost
+scikit-learn
+sqlalchemy
+pydantic
+python-dotenv
+pytest
+pytest-cov
+httpx
+redis
+joblib
+numpy
+psycopg2-binary

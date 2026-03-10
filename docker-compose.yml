@@ -1,0 +1,19 @@
+version: '3.9'
+services:
+  app:
+    build: .
+    ports: ['8000:8000']
+    env_file: .env
+    depends_on: [db]
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: pass
+      POSTGRES_DB: frauddb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
