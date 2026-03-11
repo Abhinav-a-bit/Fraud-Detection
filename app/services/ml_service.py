@@ -1,19 +1,36 @@
-import joblib
+import os
 import numpy as np
-from pathlib import Path
+from ml.cascade import CascadingFraudDetector
 
-_model = None
-_scaler = None
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '../../ml/cascade_model.pkl')
+detector = None
 
 def load_model():
-    global _model, _scaler
-    _model  = joblib.load(Path('ml/model.pkl'))
-    _scaler = joblib.load(Path('ml/preprocessor.pkl'))
-    print('Model loaded successfully')
+    global detector
+    try:
+        # Initialize your custom class
+        detector = CascadingFraudDetector()
+        # Use your custom method to load the weights and scalers
+        detector.load_model(MODEL_PATH)
+        print("Model loaded successfully!")
+    except Exception as e:
+        print(f"Error loading model: {e}")
 
-def predict(features: list[float]) -> float:
-    if _model is None:
-        raise RuntimeError('Model not loaded. Call load_model() first.')
-    X = _scaler.transform([features])
-    prob = _model.predict_proba(X)[0][1]
-    return round(float(prob), 4)
+def predict(features: list) -> float:
+    if detector is None:
+        raise RuntimeError("Model is not loaded.")
+    
+    features_array = np.array([features])
+    
+    fraud_prob = detector.predict_proba(features_array)[0]
+    
+    return float(fraud_prob)
+def explain(features: list) -> dict:
+    if detector is None:
+        raise RuntimeError("Model is not loaded.")
+    
+    features_array = np.array([features])
+    
+    explanation = detector.explain_prediction(features_array, index=0)
+    
+    return explanation

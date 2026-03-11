@@ -18,3 +18,9 @@ def get_db():
         yield db
     finally:
         db.close()
+
+def create_tables():
+    """Creates all tables in the database if they don't already exist."""
+    from app.models.db_models import Base
+    Base.metadata.create_all(bind=engine)
+    print("Database tables created.")

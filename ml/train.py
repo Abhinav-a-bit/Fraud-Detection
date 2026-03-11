@@ -1,32 +1,49 @@
+import pandas as pd
 import numpy as np
-import joblib
-from sklearn.datasets import make_classification
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import roc_auc_score
-from xgboost import XGBClassifier
+from sklearn.metrics import roc_auc_score, classification_report
+from cascade import CascadingFraudDetector # Assumes cascade.py is in the same folder
 
-X, y = make_classification(
-    n_samples=50_000, n_features=7,
-    weights=[0.98, 0.02], random_state=42
+print("Loading Kaggle dataset...")
+df = pd.read_csv('ml/data/creditcard.csv')
+
+X = df.drop(columns=['Class'])
+y = df['Class']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-scaler = StandardScaler()
-X_train_s = scaler.fit_transform(X_train)
-X_test_s  = scaler.transform(X_test)
-
-model = XGBClassifier(
-    n_estimators=100,
-    scale_pos_weight=49,   
-    random_state=42,
-    eval_metric='auc'
+print("\nPhase 1 : Training")
+detector = CascadingFraudDetector(
+    anomaly_percentile=95, 
+    contamination_rate=0.05,
+    pos_weight=10 
 )
-model.fit(X_train_s, y_train)
 
-auc = roc_auc_score(y_test, model.predict_proba(X_test_s)[:, 1])
-print(f'AUC-ROC: {auc:.4f}') 
+# Train the model on the 80% split
+detector.fit(X_train.values, y_train.values, feature_names=X.columns.tolist())
 
-joblib.dump(model,  'ml/model.pkl') 
-joblib.dump(scaler, 'ml/preprocessor.pkl') 
-print('Model saved to ml/model.pkl') 
+print("\nPhase 2: Testing")
+# Ask the model to predict fraud on the 20% it has never seen
+print("Scoring test dataset...")
+probas = detector.predict_proba(X_test.values)
+
+preds = (probas >= 0.5).astype(int)
+
+print(f"\nROC-AUC Score: {roc_auc_score(y_test, probas):.4f}")
+print("\nClassification Report:")
+print(classification_report(y_test, preds))
+
+print("\nPhase 3: Single Transaction Simulation")
+explanation = detector.explain_prediction(X_test.values, index=0)
+
+print(f"Transaction True Class: {y_test.iloc[0]} (0=Legit, 1=Fraud)")
+print(f"Predicted Fraud Probability: {explanation['fraud_probability']:.4%}")
+print(f"Processed by Stage: {explanation['processing_stage']} "
+      f"({'Isolation Forest' if explanation['processing_stage'] ==1 else 'XGBoost Deep Analysis'})")
+print(f"Anomaly Score: {explanation['anomaly_score']:.4f}")
+
+print("\n Phase 4: Saving")
+detector.save_model('ml/cascade_model.pkl')
+print("Model pipeline verified and saved! Ready for API integration.")
